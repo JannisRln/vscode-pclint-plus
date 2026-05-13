@@ -1,0 +1,145 @@
+{
+  "name": "vscode-pclint-plus",
+  "displayName": "vscode-pclint-plus",
+  "description": " Fast PC-lint Plus diagnostics for C/C++ projects",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.118.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:c",
+    "onLanguage:cpp",
+    "onLanguage:cuda-cpp"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+        {
+          "command": "pclintPlus.lintCurrentFile",
+          "title": "PC-lint Plus: Lint Current File"
+        },
+        {
+          "command": "pclintPlus.showOutput",
+          "title": "PC-lint Plus: Show Output"
+        },
+        {
+          "command": "pclintPlus.copyLastCommand",
+          "title": "PC-lint Plus: Copy Last Command"
+        },
+        {
+          "command": "pclintPlus.clearDiagnostics",
+          "title": "PC-lint Plus: Clear Diagnostics"
+        },
+        {
+          "command": "pclintPlus.rebuildPch",
+          "title": "PC-lint Plus: Rebuild PCH"
+        }
+      ],
+  "configuration": {
+    "title": "PC-lint Plus",
+    "properties": {
+      "pclintPlus.enabled": {
+        "type": "boolean",
+        "default": true,
+        "scope": "resource"
+      },
+      "pclintPlus.executable": {
+        "type": "string",
+        "default": "pclp",
+        "scope": "resource"
+      },
+      "pclintPlus.ruleset": {
+        "type": "string",
+        "default": "${workspaceFolder}/lint/project.lnt",
+        "scope": "resource"
+      },
+      "pclintPlus.triggers.onSave": {
+        "type": "boolean",
+        "default": true,
+        "scope": "resource"
+      },
+      "pclintPlus.triggers.onType": {
+        "type": "boolean",
+        "default": true,
+        "scope": "resource"
+      },
+      "pclintPlus.triggers.onTypeDelayMs": {
+        "type": "number",
+        "default": 2500,
+        "minimum": 250,
+        "scope": "resource"
+      },
+      "pclintPlus.analysis.useUnitCheck": {
+        "type": "boolean",
+        "default": true,
+        "scope": "resource"
+      },
+      "pclintPlus.buildInfo.includeDirs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": [],
+        "scope": "resource"
+      },
+      "pclintPlus.buildInfo.defines": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": ["_lint"],
+        "scope": "resource"
+      },
+      "pclintPlus.buildInfo.standard": {
+        "type": "string",
+        "default": "",
+        "scope": "resource"
+      },
+      "pclintPlus.diagnostics.includeHeaders": {
+        "type": "boolean",
+        "default": false,
+        "scope": "resource"
+      },
+      "pclintPlus.logging.showCommand": {
+        "type": "boolean",
+        "default": true,
+        "scope": "resource"
+      },
+      "pclintPlus.logging.fullOutput": {
+        "type": "boolean",
+        "default": false,
+        "scope": "resource"
+      }
+    }
+  }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.118.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.56.1",
+    "eslint": "^9.39.3",
+    "esbuild": "^0.27.3",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
