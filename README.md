@@ -1,71 +1,99 @@
-# vscode-pclint-plus README
+# vscode-pclint-plus
 
-This is the README for your extension "vscode-pclint-plus". After writing up a brief description, we recommend including the following sections.
+Fast PC-lint Plus diagnostics for C/C++ projects in Visual Studio Code.
+
+The extension runs PC-lint Plus for the current C/C++ file, parses a stable one-line output format, and publishes diagnostics to editor squiggles and the Problems panel. It keeps the user-owned PC-lint Plus ruleset separate from the generated integration `.lnt` file.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+- Lint current C/C++ file manually, on save, or after typing stops.
+- Workspace-specific PC-lint Plus executable and ruleset configuration.
+- Generated temporary `.lnt` files under `.vscode/.pclint-plus/<profile>/generated/`.
+- Manual include path, system include path, define, and language standard settings.
+- Named profile support through `pclintPlus.activeProfile` and `pclintPlus.profiles`.
+- Current-file diagnostics by default, with optional header diagnostic inclusion.
+- Configurable severity mapping and message-number severity overrides.
+- Stale job cancellation and per-run timeout.
+- Output channel logging with shell command and argument array.
+- Copy-last-command and PCH rebuild commands.
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+Install PC-lint Plus separately and make sure the configured executable is available from VS Code. The ruleset `.lnt` remains project-owned and should include compiler adaptation rules, project suppressions, and coding-standard configuration.
 
-## Extension Settings
+## Basic Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+```json
+{
+  "pclintPlus.enabled": true,
+  "pclintPlus.executable": "pclp",
+  "pclintPlus.ruleset": "${workspaceFolder}/lint/project.lnt",
+  "pclintPlus.triggers.onSave": true,
+  "pclintPlus.triggers.onType": true,
+  "pclintPlus.triggers.onTypeDelayMs": 2500,
+  "pclintPlus.analysis.useUnitCheck": true,
+  "pclintPlus.buildInfo.includeDirs": [
+    "${workspaceFolder}/include",
+    "${workspaceFolder}/src"
+  ],
+  "pclintPlus.buildInfo.systemIncludeDirs": [],
+  "pclintPlus.buildInfo.defines": [
+    "_lint",
+    "DEBUG"
+  ],
+  "pclintPlus.buildInfo.standard": "c++20"
+}
+```
 
-For example:
+## Profile Settings
 
-This extension contributes the following settings:
+Profiles override the flat settings for a named target or configuration.
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+```json
+{
+  "pclintPlus.activeProfile": "debug",
+  "pclintPlus.profiles": {
+    "debug": {
+      "executable": "pclp",
+      "ruleset": "${workspaceFolder}/lint/project-debug.lnt",
+      "buildInfo": {
+        "includeDirs": [
+          "${workspaceFolder}/include",
+          "${workspaceFolder}/src"
+        ],
+        "systemIncludeDirs": [],
+        "defines": [
+          "_lint",
+          "DEBUG"
+        ],
+        "standard": "c++20"
+      },
+      "pch": {
+        "enabled": true,
+        "header": "lint/pclint_pch.hpp",
+        "watch": true
+      }
+    }
+  }
+}
+```
 
-## Known Issues
+When PCH is enabled, the generated `.lnt` adds the PCH header directory to the include path and passes the basename to `-pch(...)`, for example `-pch(pclint_pch.hpp)`.
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+## Commands
 
-## Release Notes
+- `PC-lint Plus: Lint Current File`
+- `PC-lint Plus: Show Output`
+- `PC-lint Plus: Copy Last Command`
+- `PC-lint Plus: Clear Diagnostics`
+- `PC-lint Plus: Rebuild PCH`
 
-Users appreciate release notes as you update your extension.
+## Development
 
-### 1.0.0
+```bash
+npm ci
+npm run compile
+npm run test:unit
+```
 
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+The `compile` script runs TypeScript checks, ESLint, and bundles the extension to `dist/extension.js`.

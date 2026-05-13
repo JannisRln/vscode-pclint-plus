@@ -1,26 +1,97 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
+import { LintScheduler } from "./lint/scheduler";
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+let diagnostics: vscode.DiagnosticCollection;
+let output: vscode.OutputChannel;
+let scheduler: LintScheduler;
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "vscode-pclint-plus" is now active!');
+export function activate(context: vscode.ExtensionContext): void {
+    output = vscode.window.createOutputChannel("PC-lint Plus");
+    diagnostics = vscode.languages.createDiagnosticCollection("PC-lint Plus");
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('vscode-pclint-plus.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from vscode-pclint-plus!');
-	});
+    scheduler = new LintScheduler(context, output, diagnostics);
 
-	context.subscriptions.push(disposable);
+    context.subscriptions.push(output);
+    context.subscriptions.push(diagnostics);
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand("pclintPlus.lintCurrentFile", async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                return;
+            }
+
+            await scheduler.lintDocument(editor.document, "manual");
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand("pclintPlus.showOutput", () => {
+            output.show();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand("pclintPlus.copyLastCommand", async () => {
+            const command = scheduler.getLastCommand();
+            if (!command) {
+                vscode.window.showInformationMessage("No PC-lint Plus command has been run yet.");
+                return;
+            }
+
+            await vscode.env.clipboard.writeText(command);
+            vscode.window.showInformationMessage("PC-lint Plus command copied.");
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand("pclintPlus.clearDiagnostics", () => {
+            diagnostics.clear();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand("pclintPlus.rebuildPch", async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor || !isCppDocument(editor.document)) {
+                vscode.window.showInformationMessage("Open a C/C++ file before rebuilding the PC-lint Plus PCH.");
+                return;
+            }
+
+            await scheduler.lintDocument(editor.document, "pchRebuild");
+            vscode.window.showInformationMessage("PC-lint Plus PCH rebuild command completed. See output for details.");
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.workspace.onDidSaveTextDocument(async document => {
+            if (isCppDocument(document)) {
+                await scheduler.lintDocument(document, "onSave");
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeTextDocument(event => {
+            if (isCppDocument(event.document)) {
+                scheduler.scheduleOnType(event.document);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(event => {
+            if (event.affectsConfiguration("pclintPlus")) {
+                scheduler.disposePendingRuns();
+            }
+        })
+    );
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate(): void {
+    scheduler?.dispose();
+}
+
+export function isCppDocument(document: Pick<vscode.TextDocument, "languageId">): boolean {
+    return ["c", "cpp", "cuda-cpp"].includes(document.languageId);
+}
