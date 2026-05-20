@@ -30,6 +30,11 @@ export interface RunPclintOptions {
     useShadowFile?: boolean;
 }
 
+interface ShadowFile {
+    uri: vscode.Uri;
+    cleanupRoot: string;
+}
+
 export async function runPclint(
     document: vscode.TextDocument,
     context: vscode.ExtensionContext,
@@ -66,7 +71,7 @@ export async function runPclint(
     const shadowFile = options.useShadowFile
         ? await writeShadowFile(document, generatedDir, workspaceFolder)
         : undefined;
-    const lintSourceFilePath = shadowFile?.fsPath ?? document.uri.fsPath;
+    const lintSourceFilePath = shadowFile?.uri.fsPath ?? document.uri.fsPath;
     const sourceDir = path.dirname(document.uri.fsPath);
 
     const generatedLnt = generateCurrentFileLnt({
@@ -97,7 +102,7 @@ export async function runPclint(
     output.appendLine(`[PC-lint Plus] Generated LNT: ${generatedLntPath}`);
 
     if (shadowFile) {
-        output.appendLine(`[PC-lint Plus] Shadow file: ${shadowFile.fsPath}`);
+        output.appendLine(`[PC-lint Plus] Shadow file: ${shadowFile.uri.fsPath}`);
     }
 
 
@@ -154,7 +159,11 @@ export async function runPclint(
         };
     } finally {
         if (shadowFile) {
-            await fs.rm(shadowFile.fsPath, { force: true });
+            try {
+                await removeShadowFile(shadowFile);
+            } catch (error) {
+                output.appendLine(`[PC-lint Plus] Could not delete shadow file/directory: ${formatErrorMessage(error)}`);
+            }
         }
     }
 
@@ -254,16 +263,68 @@ async function writeShadowFile(
     document: vscode.TextDocument,
     generatedDir: string,
     workspaceFolder: vscode.WorkspaceFolder
-): Promise<vscode.Uri> {
+): Promise<ShadowFile> {
     const relativePath = path.relative(workspaceFolder.uri.fsPath, document.uri.fsPath);
     const hash = createHash("sha1").update(document.uri.toString()).digest("hex").slice(0, 12);
-    const shadowDir = path.join(generatedDir, "shadow", hash, path.dirname(relativePath));
+    const cleanupRoot = path.join(generatedDir, "shadow");
+    const shadowDir = path.join(cleanupRoot, hash, path.dirname(relativePath));
     const shadowPath = path.join(shadowDir, path.basename(document.uri.fsPath));
 
     await fs.mkdir(shadowDir, { recursive: true });
     await fs.writeFile(shadowPath, document.getText(), "utf8");
 
-    return vscode.Uri.file(shadowPath);
+    return {
+        uri: vscode.Uri.file(shadowPath),
+        cleanupRoot
+    };
+}
+
+async function removeShadowFile(shadowFile: ShadowFile): Promise<void> {
+    await fs.rm(shadowFile.uri.fsPath, { force: true });
+    await removeEmptyDirectoriesUpTo(path.dirname(shadowFile.uri.fsPath), shadowFile.cleanupRoot);
+}
+
+async function removeEmptyDirectoriesUpTo(directory: string, root: string): Promise<void> {
+    let current = path.resolve(directory);
+    const resolvedRoot = path.resolve(root);
+
+    if (!isPathInsideOrEqual(current, resolvedRoot)) {
+        return;
+    }
+
+    while (isPathInsideOrEqual(current, resolvedRoot)) {
+        try {
+            await fs.rmdir(current);
+        } catch (error) {
+            if (isDirectoryNotEmptyOrMissing(error)) {
+                return;
+            }
+
+            throw error;
+        }
+
+        if (current === resolvedRoot) {
+            return;
+        }
+
+        current = path.dirname(current);
+    }
+}
+
+function isPathInsideOrEqual(candidate: string, root: string): boolean {
+    const relative = path.relative(root, candidate);
+    return relative.length === 0 || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function isDirectoryNotEmptyOrMissing(error: unknown): boolean {
+    return typeof error === "object"
+        && error !== null
+        && "code" in error
+        && ["ENOTEMPTY", "EEXIST", "ENOENT"].includes(String(error.code));
+}
+
+function formatErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
 }
 
 function groupDiagnosticsByTargetFile(
