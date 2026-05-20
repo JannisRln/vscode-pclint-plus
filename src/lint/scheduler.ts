@@ -8,6 +8,7 @@ export class LintScheduler {
     private timers = new Map<string, NodeJS.Timeout>();
     private running = new Map<string, ChildProcess>();
     private generations = new Map<string, number>();
+    private publishedDiagnosticUris = new Map<string, Set<string>>();
     private lastCommand?: string;
 
     public constructor(
@@ -88,7 +89,7 @@ export class LintScheduler {
             }
 
             this.lastCommand = result.commandLine;
-            this.diagnostics.set(document.uri, result.diagnostics);
+            this.publishDiagnostics(key, result.diagnosticSets);
         } catch (error) {
             this.output.appendLine(`[PC-lint Plus] Failed: ${String(error)}`);
         } finally {
@@ -97,6 +98,27 @@ export class LintScheduler {
             }
         }
     }
+
+    private publishDiagnostics(
+        documentKey: string,
+        diagnosticSets: Array<{ uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }>
+    ): void {
+        const previousUris = this.publishedDiagnosticUris.get(documentKey) ?? new Set<string>();
+        const currentUris = new Set(diagnosticSets.map(diagnosticSet => diagnosticSet.uri.toString()));
+
+        for (const previousUri of previousUris) {
+            if (!currentUris.has(previousUri)) {
+                this.diagnostics.set(vscode.Uri.parse(previousUri), []);
+            }
+        }
+
+        for (const diagnosticSet of diagnosticSets) {
+            this.diagnostics.set(diagnosticSet.uri, diagnosticSet.diagnostics);
+        }
+
+        this.publishedDiagnosticUris.set(documentKey, currentUris);
+    }
+  
 
     public disposePendingRuns(): void {
         for (const timer of this.timers.values()) {
@@ -109,6 +131,7 @@ export class LintScheduler {
 
         this.timers.clear();
         this.running.clear();
+        this.publishedDiagnosticUris.clear();
     }
 
     public dispose(): void {

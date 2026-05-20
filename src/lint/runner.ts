@@ -11,9 +11,14 @@ import { buildPclintCommand } from "@src/lint/commandBuilder";
 import { sameFile } from "@src/util/path";
 import { appendOptionalBlock, appendSection } from "@src/util/output";
 
+export interface PclintDiagnosticSet {
+    uri: vscode.Uri;
+    diagnostics: vscode.Diagnostic[];
+}
+
 export interface PclintResult {
     commandLine: string;
-    diagnostics: vscode.Diagnostic[];
+    diagnosticSets: PclintDiagnosticSet[];
     stdout: string;
     stderr: string;
     exitCode: number | null;
@@ -113,22 +118,38 @@ export async function runPclint(
         );
 
         const pclintDiagnostics = parsePclintOutput(result.stdout)
-            .filter(diagnostic => includeHeaders || isCurrentFileDiagnostic(diagnostic.file, document.uri.fsPath, lintSourceFilePath));
-
-        const diagnostics = toVscodeDiagnostics(
-            pclintDiagnostics,
-            profile.severityMap,
-            profile.messageSeverityOverrides
+            .filter(diagnostic => includeHeaders || isCurrentFileDiagnostic(
+                diagnostic.file,
+                document.uri.fsPath,
+                lintSourceFilePath,
+                workspaceFolder.uri.fsPath
+            ));
+ 
+        const diagnosticSets = groupDiagnosticsByTargetFile(
+             pclintDiagnostics,
+            document.uri.fsPath,
+            lintSourceFilePath,
+            workspaceFolder.uri.fsPath,
+             profile.severityMap,
+             profile.messageSeverityOverrides
+         );
+        const diagnostics = diagnosticSets.find(diagnosticSet => sameFile(
+            diagnosticSet.uri.fsPath,
+            document.uri.fsPath
+        ))?.diagnostics ?? [];
+        const diagnosticCount = diagnosticSets.reduce(
+            (count, diagnosticSet) => count + diagnosticSet.diagnostics.length,
+            0
         );
 
         output.appendLine(`[PC-lint Plus] Duration: ${result.durationMs} ms`);
-        output.appendLine(`[PC-lint Plus] Diagnostics: ${diagnostics.length}`);
+        output.appendLine(`[PC-lint Plus] Diagnostics: ${diagnosticCount}`);
         appendOptionalBlock(output, "stdout", result.stdout, fullOutput);
         appendOptionalBlock(output, "stderr", result.stderr, fullOutput || result.stderr.trim().length > 0);
 
         return {
             ...result,
-            diagnostics,
+            diagnosticSets,
             generatedLntPath
         };
     } finally {
@@ -148,7 +169,7 @@ function runProcess(
     output: vscode.OutputChannel,
     timeoutMs: number,
     onProcessStarted?: (process: ChildProcess) => void
-): Promise<Omit<PclintResult, "diagnostics" | "generatedLntPath">> {
+): Promise<Omit<PclintResult, "diagnostics" | "diagnosticSets" | "generatedLntPath">> {
     return new Promise((resolve, reject) => {
         const startedAt = Date.now();
         const child = spawn(executable, args, {
@@ -245,8 +266,69 @@ async function writeShadowFile(
     return vscode.Uri.file(shadowPath);
 }
 
-function isCurrentFileDiagnostic(diagnosticFile: string, documentPath: string, lintSourceFilePath: string): boolean {
-    return sameFile(diagnosticFile, documentPath) || sameFile(diagnosticFile, lintSourceFilePath);
+function groupDiagnosticsByTargetFile(
+    diagnostics: ReturnType<typeof parsePclintOutput>,
+    documentPath: string,
+    lintSourceFilePath: string,
+    workspaceFolderPath: string,
+    severityMap: Parameters<typeof toVscodeDiagnostics>[1],
+    messageSeverityOverrides: Parameters<typeof toVscodeDiagnostics>[2]
+): PclintDiagnosticSet[] {
+    const groupedDiagnostics = new Map<string, ReturnType<typeof parsePclintOutput>>();
+
+    for (const diagnostic of diagnostics) {
+        const targetPath = getDiagnosticTargetPath(
+            diagnostic.file,
+            documentPath,
+            lintSourceFilePath,
+            workspaceFolderPath
+        );
+        const existingDiagnostics = groupedDiagnostics.get(targetPath) ?? [];
+
+        existingDiagnostics.push(diagnostic);
+        groupedDiagnostics.set(targetPath, existingDiagnostics);
+    }
+
+    return [...groupedDiagnostics.entries()].map(([targetPath, fileDiagnostics]) => ({
+        uri: vscode.Uri.file(targetPath),
+        diagnostics: toVscodeDiagnostics(
+            fileDiagnostics,
+            severityMap,
+            messageSeverityOverrides
+        )
+    }));
+}
+
+function getDiagnosticTargetPath(
+    diagnosticFile: string,
+    documentPath: string,
+    lintSourceFilePath: string,
+    workspaceFolderPath: string
+): string {
+    const resolvedDiagnosticPath = resolveDiagnosticPath(diagnosticFile, workspaceFolderPath);
+
+    if (sameFile(resolvedDiagnosticPath, documentPath) || sameFile(resolvedDiagnosticPath, lintSourceFilePath)) {
+        return documentPath;
+    }
+
+    return resolvedDiagnosticPath;
+}
+
+function isCurrentFileDiagnostic(
+    diagnosticFile: string,
+    documentPath: string,
+    lintSourceFilePath: string,
+    workspaceFolderPath: string
+): boolean {
+    const resolvedDiagnosticPath = resolveDiagnosticPath(diagnosticFile, workspaceFolderPath);
+
+    return sameFile(resolvedDiagnosticPath, documentPath) || sameFile(resolvedDiagnosticPath, lintSourceFilePath);
+}
+
+function resolveDiagnosticPath(diagnosticFile: string, workspaceFolderPath: string): string {
+    return path.isAbsolute(diagnosticFile)
+        ? path.normalize(diagnosticFile)
+        : path.normalize(path.join(workspaceFolderPath, diagnosticFile));
 }
 
 function prependUnique(values: string[], value: string): string[] {
