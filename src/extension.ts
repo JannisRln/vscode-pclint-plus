@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { LintScheduler } from "./lint/scheduler";
+import { LntDocumentLinkProvider, openLntPath } from "./lnt/documentLinks";
 
 let diagnostics: vscode.DiagnosticCollection;
 let output: vscode.OutputChannel;
@@ -13,6 +14,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(output);
     context.subscriptions.push(diagnostics);
+    context.subscriptions.push(
+        vscode.languages.registerDocumentLinkProvider(
+            { language: "pclint-lnt" },
+            new LntDocumentLinkProvider()
+        )
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand("pclintPlus.openLntPath", openLntPath)
+    );
 
     context.subscriptions.push(
         vscode.commands.registerCommand("pclintPlus.lintCurrentFile", async () => {

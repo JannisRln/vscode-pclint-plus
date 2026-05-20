@@ -12,7 +12,8 @@
   "activationEvents": [
     "onLanguage:c",
     "onLanguage:cpp",
-    "onLanguage:cuda-cpp"
+    "onLanguage:cuda-cpp",
+    "onLanguage:pclint-lnt"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -174,7 +175,28 @@
           "scope": "resource"
         }
       }
-    }
+    },
+    "languages": [
+      {
+        "id": "pclint-lnt",
+        "aliases": [
+          "PC-lint Plus LNT",
+          "PC-lint LNT",
+          "LNT"
+        ],
+        "extensions": [
+          ".lnt"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "pclint-lnt",
+        "scopeName": "source.pclint-lnt",
+        "path": "./syntaxes/pclint-lnt.tmLanguage.json"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

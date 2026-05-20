@@ -1,0 +1,176 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "PC-lint Plus LNT",
+  "scopeName": "source.pclint-lnt",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#messageOptions"
+    },
+    {
+      "include": "#includeOptions"
+    },
+    {
+      "include": "#macroOptions"
+    },
+    {
+      "include": "#libraryOptions"
+    },
+    {
+      "include": "#standardOptions"
+    },
+    {
+      "include": "#generalOptions"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#paths"
+    },
+    {
+      "include": "#variables"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.pclint-lnt",
+          "begin": "/\\*",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.begin.pclint-lnt"
+            }
+          },
+          "end": "\\*/",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.end.pclint-lnt"
+            }
+          }
+        },
+        {
+          "name": "comment.line.double-slash.pclint-lnt",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.pclint-lnt",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.pclint-lnt",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "messageOptions": {
+      "patterns": [
+        {
+          "name": "keyword.control.suppression.pclint-lnt",
+          "match": "(?<!\\S)[+-]e(?:call|file|line|macro|sym|typedef)?\\b"
+        },
+        {
+          "name": "keyword.control.suppression.pclint-lnt",
+          "match": "(?<!\\S)-(?:estring|emacro|efile|elib|elibcall|elibmacro|elibsym|wlib|wlibcall|wlibsym)\\b"
+        },
+        {
+          "name": "constant.numeric.message-id.pclint-lnt",
+          "match": "(?<=\\()\\s*\\d+(?:\\s*,\\s*\\d+)*(?=\\s*[,)])|(?<![A-Za-z0-9_])\\d{2,5}(?![A-Za-z0-9_])"
+        }
+      ]
+    },
+    "includeOptions": {
+      "patterns": [
+        {
+          "name": "keyword.other.include-path.pclint-lnt",
+          "match": "(?<!\\S)(?:-[iu]|--(?:include|system-include))(?:\\b|(?=[(=]))"
+        },
+        {
+          "name": "keyword.other.include-file.pclint-lnt",
+          "match": "(?<!\\S)(?:\\+libdir|\\+libh|\\+libm|\\+libclass|\\+libnamespace|\\+libtypedef)(?:\\b|(?=[(=]))"
+        },
+        {
+          "name": "entity.name.filename.lnt.pclint-lnt",
+          "match": "(?<!\\S)@?[^\\s\"()]+\\.lnt\\b"
+        }
+      ]
+    },
+    "macroOptions": {
+      "patterns": [
+        {
+          "name": "keyword.other.preprocessor.pclint-lnt",
+          "match": "(?<!\\S)(?:-[dDuU]|--(?:define|undefine))(?:\\b|(?=[(=]))"
+        },
+        {
+          "name": "entity.name.function.preprocessor.pclint-lnt",
+          "match": "(?<=[-+]d\\()\\s*[A-Za-z_][A-Za-z0-9_]*|(?<=-D)\\s*[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "libraryOptions": {
+      "patterns": [
+        {
+          "name": "keyword.other.library.pclint-lnt",
+          "match": "(?<!\\S)[+-]lib(?:class|dir|h|macro|m|namespace|sym|typedef)?(?:\\b|(?=[(=]))"
+        }
+      ]
+    },
+    "standardOptions": {
+      "patterns": [
+        {
+          "name": "keyword.other.language-standard.pclint-lnt",
+          "match": "(?<!\\S)-(?:std|passes|unit_check|header|module|pch)(?:\\b|(?=[(=]))"
+        },
+        {
+          "name": "support.constant.language-standard.pclint-lnt",
+          "match": "(?<![A-Za-z0-9_])(?:c\\+\\+\\d{2}|c\\d{2}|gnu\\+\\+\\d{2}|gnu\\d{2})(?![A-Za-z0-9_])"
+        }
+      ]
+    },
+    "generalOptions": {
+      "patterns": [
+        {
+          "name": "keyword.other.option.pclint-lnt",
+          "match": "(?<!\\S)(?:--?[A-Za-z][A-Za-z0-9_-]*|[+-][A-Za-z][A-Za-z0-9_+-]*)(?:\\b|(?=[(=]))"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.pclint-lnt",
+          "match": "(?<![A-Za-z0-9_])\\d+(?![A-Za-z0-9_])"
+        }
+      ]
+    },
+    "paths": {
+      "patterns": [
+        {
+          "name": "string.unquoted.path.pclint-lnt",
+          "match": "(?<!\\S)(?:[A-Za-z]:)?(?:\\.\\.?[/\\\\]|[/\\\\]|[A-Za-z0-9_${}.-]+[/\\\\])[^\\s\"]+"
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.other.pclint-lnt",
+          "match": "\\$\\{[A-Za-z_][A-Za-z0-9_.-]*\\}|%[A-Za-z_][A-Za-z0-9_]*%"
+        }
+      ]
+    }
+  }
+}
