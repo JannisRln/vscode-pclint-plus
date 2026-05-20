@@ -42,7 +42,7 @@ describe("generateCurrentFileLnt", () => {
         const text = generateCurrentFileLnt({
             useUnitCheck: true,
             includeDirs: ["/project/include", "/project/src"],
-            defines: ["_lint", "DEBUG", "TARGET_BOARD=1"],
+            defines: ["DEBUG", "TARGET_BOARD=1"],
             standard: "c++20"
         });
 

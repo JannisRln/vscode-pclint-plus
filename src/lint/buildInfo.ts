@@ -18,7 +18,7 @@ export function resolveManualBuildInfo(
     return {
         includeDirs: resolvePaths(raw.includeDirs ?? [], workspaceFolder),
         systemIncludeDirs: resolvePaths(raw.systemIncludeDirs ?? [], workspaceFolder),
-        defines: raw.defines ?? ["_lint"],
+        defines: raw.defines ?? [],
         standard: raw.standard ?? ""
     };
 }

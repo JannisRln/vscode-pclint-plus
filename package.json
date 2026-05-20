@@ -61,7 +61,7 @@
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "Full path to the PC-lint Plus message XML file, including the XML file name, for example ${workspaceFolder}/lint/msg.xml. When set, the Problems message is enriched with the text found for the diagnostic code."
+          "description": "Full path to the PC-lint Plus message XML file, including the XML file name, for example ${workspaceFolder}/lint/msg.xml. When set, PC-lint Plus message text and commentary are shown in editor hovers for diagnostics while the Problems list remains compact."
         },
         "pclintPlus.triggers.onSave": {
           "type": "boolean",
@@ -98,9 +98,7 @@
           "items": {
             "type": "string"
           },
-          "default": [
-            "_lint"
-          ],
+          "default": [],
           "scope": "resource"
         },
         "pclintPlus.buildInfo.standard": {

@@ -204,38 +204,12 @@ function withCatalogMessages(
 
     return diagnostics.map(diagnostic => {
         const normalizedCode = normalizeMessageCode(diagnostic.code);
-        const catalogMessage = messageCatalog.get(normalizedCode);
-
-        if (!catalogMessage) {
-            return diagnostic;
-        }
-
-        const existingMessage = diagnostic.message.trim();
-        const catalogDetails = formatCatalogMessage(normalizedCode, catalogMessage.text, catalogMessage.commentary);
-        const message = existingMessage.length === 0 || existingMessage === diagnostic.code
-            ? catalogDetails
-            : `${existingMessage}\n\n${catalogDetails}`;
 
         return {
             ...diagnostic,
-            code: normalizedCode.length > 0 ? normalizedCode : diagnostic.code,
-            message
+            code: normalizedCode.length > 0 ? normalizedCode : diagnostic.code
         };
     });
-}
-
-function formatCatalogMessage(code: string, text: string, commentary: string): string {
-    const parts = [`PC-lint message ${code}:`];
-
-    if (text.trim().length > 0) {
-        parts.push(text.trim());
-    }
-
-    if (commentary.trim().length > 0) {
-        parts.push(commentary.trim());
-    }
-
-    return parts.join("\n");
 }
 
 function runProcess(

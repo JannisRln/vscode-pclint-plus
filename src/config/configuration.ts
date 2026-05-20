@@ -34,7 +34,7 @@ export function resolvePclintProfile(
     const flatBuildInfo: RawBuildInfo = {
         includeDirs: config.get<string[]>("buildInfo.includeDirs", []),
         systemIncludeDirs: config.get<string[]>("buildInfo.systemIncludeDirs", []),
-        defines: config.get<string[]>("buildInfo.defines", ["_lint"]),
+        defines: config.get<string[]>("buildInfo.defines", []),
         standard: config.get<string>("buildInfo.standard", "")
     };
 

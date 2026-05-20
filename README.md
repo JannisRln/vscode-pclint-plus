@@ -38,7 +38,6 @@ Install PC-lint Plus separately and make sure the configured executable is avail
   ],
   "pclintPlus.buildInfo.systemIncludeDirs": [],
   "pclintPlus.buildInfo.defines": [
-    "_lint",
     "DEBUG"
   ],
   "pclintPlus.buildInfo.standard": "c++20"
@@ -63,7 +62,6 @@ Profiles override the flat settings for a named target or configuration.
         ],
         "systemIncludeDirs": [],
         "defines": [
-          "_lint",
           "DEBUG"
         ],
         "standard": "c++20"

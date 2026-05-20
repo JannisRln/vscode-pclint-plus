@@ -2,19 +2,29 @@ import * as vscode from "vscode";
 import { LintScheduler } from "./lint/scheduler";
 import { LntDocumentLinkProvider, openLntPath } from "./lnt/documentLinks";
 import { LntCompletionItemProvider } from "./lnt/completions";
+import { PclintMessageHoverProvider } from "./diagnostics/hoverProvider";
 
 let diagnostics: vscode.DiagnosticCollection;
 let output: vscode.OutputChannel;
 let scheduler: LintScheduler;
+let hoverProvider: PclintMessageHoverProvider;
 
 export function activate(context: vscode.ExtensionContext): void {
     output = vscode.window.createOutputChannel("PC-lint Plus");
     diagnostics = vscode.languages.createDiagnosticCollection("PC-lint Plus");
 
     scheduler = new LintScheduler(context, output, diagnostics);
+    hoverProvider = new PclintMessageHoverProvider(diagnostics);
 
     context.subscriptions.push(output);
     context.subscriptions.push(diagnostics);
+    context.subscriptions.push(
+        vscode.languages.registerHoverProvider(
+            ["c", "cpp", "cuda-cpp"],
+            hoverProvider
+        )
+    );
+
     context.subscriptions.push(
         vscode.languages.registerDocumentLinkProvider(
             { language: "pclint-lnt" },
@@ -104,6 +114,7 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration("pclintPlus")) {
                 scheduler.disposePendingRuns();
+                hoverProvider.clearCache();
             }
         })
     );
