@@ -1,4 +1,5 @@
 import { PclintDiagnostic, PclintSeverity } from "./diagnosticModel";
+import { normalizeMessageCode } from "./messageXml";
 
 export function parsePclintOutput(output: string): PclintDiagnostic[] {
     const diagnostics: PclintDiagnostic[] = [];
@@ -28,7 +29,7 @@ export function parsePclintOutput(output: string): PclintDiagnostic[] {
             line: parsedLine,
             column: parsedColumn,
             severity: severityText,
-            code,
+            code: normalizeMessageCode(code) || code,
             message: messageParts.join("|").trim()
         });
     }

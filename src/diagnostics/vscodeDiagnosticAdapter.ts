@@ -10,11 +10,12 @@ export function toVscodeDiagnostic(
     const line = Math.max(0, diagnostic.line - 1);
     const column = Math.max(0, diagnostic.column - 1);
 
+    const highlightLength = Math.max(8, diagnostic.code.length, diagnostic.message.trim().length);
     const range = new vscode.Range(
         line,
         column,
         line,
-        column + 1
+        column + highlightLength
     );
 
     const vscodeDiagnostic = new vscode.Diagnostic(

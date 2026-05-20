@@ -22,6 +22,7 @@ export interface ResolvedPclintProfile {
     name: string;
     executable: string;
     rulesetPath: string;
+    messageXmlPath: string;
     buildInfo: PclintBuildInfo;
     pch: PclintPchConfig;
     severityMap: PclintSeverityMap;

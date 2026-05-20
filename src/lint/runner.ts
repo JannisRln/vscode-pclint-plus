@@ -5,6 +5,7 @@ import { spawn, ChildProcess } from "child_process";
 import { createHash } from "crypto";
 import { parsePclintOutput } from "@src/diagnostics/parser";
 import { toVscodeDiagnostics } from "@src/diagnostics/vscodeDiagnosticAdapter";
+import { loadMessageCatalog, normalizeMessageCode, PclintMessageCatalog } from "@src/diagnostics/messageXml";
 import { resolvePclintProfile } from "@src/config/configuration";
 import { generateCurrentFileLnt } from "@src/lint/lntGenerator";
 import { buildPclintCommand } from "@src/lint/commandBuilder";
@@ -101,6 +102,13 @@ export async function runPclint(
     output.appendLine(`[PC-lint Plus] Workspace: ${workspaceFolder.uri.fsPath}`);
     output.appendLine(`[PC-lint Plus] Generated LNT: ${generatedLntPath}`);
 
+    const messageCatalog = await loadMessageCatalogSafely(profile.messageXmlPath, output);
+
+    if (profile.messageXmlPath.trim().length > 0) {
+        output.appendLine(`[PC-lint Plus] Message XML: ${profile.messageXmlPath}`);
+        output.appendLine(`[PC-lint Plus] Message XML entries: ${messageCatalog.size}`);
+    }
+
     if (shadowFile) {
         output.appendLine(`[PC-lint Plus] Shadow file: ${shadowFile.uri.fsPath}`);
     }
@@ -122,7 +130,7 @@ export async function runPclint(
             onProcessStarted
         );
 
-        const pclintDiagnostics = parsePclintOutput(result.stdout)
+        const pclintDiagnostics = withCatalogMessages(parsePclintOutput(result.stdout), messageCatalog)
             .filter(diagnostic => includeHeaders || isCurrentFileDiagnostic(
                 diagnostic.file,
                 document.uri.fsPath,
@@ -168,6 +176,66 @@ export async function runPclint(
     }
 
     void context;
+}
+
+async function loadMessageCatalogSafely(
+    messageXmlPath: string,
+    output: vscode.OutputChannel
+): Promise<PclintMessageCatalog> {
+    if (messageXmlPath.trim().length === 0) {
+        return new Map();
+    }
+
+    try {
+        return await loadMessageCatalog(messageXmlPath);
+    } catch (error) {
+        output.appendLine(`[PC-lint Plus] Could not load message XML: ${formatErrorMessage(error)}`);
+        return new Map();
+    }
+}
+
+function withCatalogMessages(
+    diagnostics: ReturnType<typeof parsePclintOutput>,
+    messageCatalog: PclintMessageCatalog
+): ReturnType<typeof parsePclintOutput> {
+    if (messageCatalog.size === 0) {
+        return diagnostics;
+    }
+
+    return diagnostics.map(diagnostic => {
+        const normalizedCode = normalizeMessageCode(diagnostic.code);
+        const catalogMessage = messageCatalog.get(normalizedCode);
+
+        if (!catalogMessage) {
+            return diagnostic;
+        }
+
+        const existingMessage = diagnostic.message.trim();
+        const catalogDetails = formatCatalogMessage(normalizedCode, catalogMessage.text, catalogMessage.commentary);
+        const message = existingMessage.length === 0 || existingMessage === diagnostic.code
+            ? catalogDetails
+            : `${existingMessage}\n\n${catalogDetails}`;
+
+        return {
+            ...diagnostic,
+            code: normalizedCode.length > 0 ? normalizedCode : diagnostic.code,
+            message
+        };
+    });
+}
+
+function formatCatalogMessage(code: string, text: string, commentary: string): string {
+    const parts = [`PC-lint message ${code}:`];
+
+    if (text.trim().length > 0) {
+        parts.push(text.trim());
+    }
+
+    if (commentary.trim().length > 0) {
+        parts.push(commentary.trim());
+    }
+
+    return parts.join("\n");
 }
 
 function runProcess(

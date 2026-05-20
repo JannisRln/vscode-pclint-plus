@@ -6,6 +6,7 @@ import { resolveWorkspacePath } from "@src/util/path";
 interface RawProfile {
     executable?: string;
     ruleset?: string;
+    messageXmlPath?: string;
     buildInfo?: RawBuildInfo;
     pch?: Partial<PclintPchConfig>;
 }
@@ -28,6 +29,7 @@ export function resolvePclintProfile(
 
     const executable = selectedProfile.executable ?? config.get<string>("executable", "pclp");
     const rulesetRaw = selectedProfile.ruleset ?? config.get<string>("ruleset", "${workspaceFolder}/lint/project.lnt");
+    const messageXmlRaw = selectedProfile.messageXmlPath ?? config.get<string>("diagnostics.messageXmlPath", "");
 
     const flatBuildInfo: RawBuildInfo = {
         includeDirs: config.get<string[]>("buildInfo.includeDirs", []),
@@ -46,6 +48,9 @@ export function resolvePclintProfile(
         name: selectedProfile === profiles[activeProfile] ? activeProfile : "default",
         executable,
         rulesetPath: resolveWorkspacePath(rulesetRaw, workspaceFolder),
+        messageXmlPath: messageXmlRaw.trim().length > 0
+            ? resolveWorkspacePath(messageXmlRaw, workspaceFolder)
+            : "",
         buildInfo: resolveManualBuildInfo(selectedProfile.buildInfo ?? flatBuildInfo, workspaceFolder),
         pch: {
             enabled: rawPch.enabled ?? false,
