@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { LintScheduler } from "./lint/scheduler";
 import { LntDocumentLinkProvider, openLntPath } from "./lnt/documentLinks";
+import { LntCompletionItemProvider } from "./lnt/completions";
 
 let diagnostics: vscode.DiagnosticCollection;
 let output: vscode.OutputChannel;
@@ -23,6 +24,15 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(
         vscode.commands.registerCommand("pclintPlus.openLntPath", openLntPath)
+    );
+
+    context.subscriptions.push(
+        vscode.languages.registerCompletionItemProvider(
+            { language: "pclint-lnt" },
+            new LntCompletionItemProvider(),
+            "-",
+            "+"
+        )
     );
 
     context.subscriptions.push(
