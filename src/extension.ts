@@ -82,6 +82,18 @@ export function activate(context: vscode.ExtensionContext): void {
     );
 
     context.subscriptions.push(
+        vscode.commands.registerCommand("pclintPlus.copyMessageText", async (messageText: string) => {
+            if (typeof messageText !== "string" || messageText.trim().length === 0) {
+                vscode.window.showInformationMessage("No PC-lint Plus message text is available to copy.");
+                return;
+            }
+
+            await vscode.env.clipboard.writeText(messageText);
+            vscode.window.showInformationMessage("PC-lint Plus message copied.");
+        })
+    );
+
+    context.subscriptions.push(
         vscode.commands.registerCommand("pclintPlus.rebuildPch", async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor || !isCppDocument(editor.document)) {

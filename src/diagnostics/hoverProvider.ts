@@ -104,22 +104,32 @@ function hasMessageInfo(messageInfo: PclintMessageInfo): boolean {
 function formatHoverMarkdown(code: string, messageInfo: PclintMessageInfo): vscode.MarkdownString {
     const markdown = new vscode.MarkdownString(undefined, true);
     const normalizedCode = normalizeMessageCode(code) || code;
+    const copyText = formatMessageTextForClipboard(normalizedCode, messageInfo);
+    const copyCommandUri = `command:pclintPlus.copyMessageText?${encodeURIComponent(JSON.stringify([copyText]))}`;
 
-    markdown.isTrusted = false;
+    markdown.isTrusted = { enabledCommands: ["pclintPlus.copyMessageText"] };
     markdown.supportHtml = false;
-    markdown.appendMarkdown(`**PC-lint Plus message ${escapeMarkdown(normalizedCode)}**`);
+    markdown.appendMarkdown(`[**PC-lint Plus message ${escapeMarkdown(normalizedCode)} $(copy)**](${copyCommandUri})`);
 
     if (messageInfo.text.trim().length > 0) {
         markdown.appendMarkdown("\n\n");
-        markdown.appendCodeblock(messageInfo.text.trim(), "text");
+        markdown.appendMarkdown(`[${escapeMarkdown(messageInfo.text.trim())}](${copyCommandUri})`);
     }
 
     if (messageInfo.commentary.trim().length > 0) {
         markdown.appendMarkdown("\n\n");
-        markdown.appendText(messageInfo.commentary.trim());
+        markdown.appendMarkdown(`[${messageInfo.commentary.trim()}](${copyCommandUri})`);
     }
 
     return markdown;
+}
+
+function formatMessageTextForClipboard(code: string, messageInfo: PclintMessageInfo): string {
+    return [
+        `PC-lint Plus message ${code}`,
+        `${messageInfo.text.trim()}`,
+        `${messageInfo.commentary.trim()}`
+    ].filter(section => section.length > 0).join("\n\n");
 }
 
 function escapeMarkdown(value: string): string {
