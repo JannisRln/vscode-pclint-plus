@@ -36,6 +36,15 @@ interface ShadowFile {
     cleanupRoot: string;
 }
 
+interface LintTarget {
+    requestedFilePath: string;
+    lintFilePath: string;
+    lintFileDescription: string;
+}
+
+const headerExtensions = new Set([".h", ".hh", ".hpp", ".hxx", ".inl", ".ipp"]);
+const sourceExtensions = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C"];
+
 export async function runPclint(
     document: vscode.TextDocument,
     context: vscode.ExtensionContext,
@@ -49,6 +58,24 @@ export async function runPclint(
         throw new Error("No workspace folder found for current document.");
     }
 
+
+    const lintTarget = await resolveLintTarget(document, workspaceFolder);
+
+    if (!lintTarget) {
+        appendSection(output, `Run ${new Date().toISOString()}`);
+        output.appendLine(`[PC-lint Plus] Requested file: ${document.uri.fsPath}`);
+        output.appendLine("[PC-lint Plus] Header file skipped because no matching source file was found.");
+
+        return {
+            commandLine: "",
+            diagnosticSets: [],
+            stdout: "",
+            stderr: "",
+            exitCode: null,
+            generatedLntPath: "",
+            durationMs: 0
+        };
+    }
 
     const config = vscode.workspace.getConfiguration("pclintPlus", document.uri);
     const profile = resolvePclintProfile(document.uri, workspaceFolder);
@@ -69,16 +96,18 @@ export async function runPclint(
     await fs.mkdir(generatedDir, { recursive: true });
 
     const generatedLntPath = path.join(generatedDir, "current-file.lnt");
-    const shadowFile = options.useShadowFile
+    const useShadowFile = options.useShadowFile && sameFile(lintTarget.lintFilePath, lintTarget.requestedFilePath);
+    const shadowFile = useShadowFile
         ? await writeShadowFile(document, generatedDir, workspaceFolder)
         : undefined;
-    const lintSourceFilePath = shadowFile?.uri.fsPath ?? document.uri.fsPath;
-    const sourceDir = path.dirname(document.uri.fsPath);
+    const lintSourceFilePath = shadowFile?.uri.fsPath ?? lintTarget.lintFilePath;
+    const sourceDir = path.dirname(lintTarget.lintFilePath);
+    const requestedFileDir = path.dirname(lintTarget.requestedFilePath);
 
     const generatedLnt = generateCurrentFileLnt({
         useUnitCheck,
         includeDirs: withPchIncludeDir(
-            prependUnique(profile.buildInfo.includeDirs, sourceDir),
+            prependUnique(prependUnique(profile.buildInfo.includeDirs, requestedFileDir), sourceDir),
             profile.pch.header,
             workspaceFolder
         ),
@@ -100,6 +129,8 @@ export async function runPclint(
     appendSection(output, `Run ${new Date().toISOString()}`);
     output.appendLine(`[PC-lint Plus] Profile: ${profile.name}`);
     output.appendLine(`[PC-lint Plus] Workspace: ${workspaceFolder.uri.fsPath}`);
+    output.appendLine(`[PC-lint Plus] Requested file: ${lintTarget.requestedFilePath}`);
+    output.appendLine(`[PC-lint Plus] Lint file: ${lintTarget.lintFilePath}${lintTarget.lintFileDescription}`);
     output.appendLine(`[PC-lint Plus] Generated LNT: ${generatedLntPath}`);
 
     const messageCatalog = await loadMessageCatalogSafely(profile.messageXmlPath, output);
@@ -133,23 +164,21 @@ export async function runPclint(
         const pclintDiagnostics = withCatalogMessages(parsePclintOutput(result.stdout), messageCatalog)
             .filter(diagnostic => includeHeaders || isCurrentFileDiagnostic(
                 diagnostic.file,
-                document.uri.fsPath,
+                lintTarget.requestedFilePath,
+                lintTarget.lintFilePath,
                 lintSourceFilePath,
                 workspaceFolder.uri.fsPath
             ));
  
         const diagnosticSets = groupDiagnosticsByTargetFile(
-             pclintDiagnostics,
-            document.uri.fsPath,
+            pclintDiagnostics,
+            lintTarget.requestedFilePath,
+            lintTarget.lintFilePath,
             lintSourceFilePath,
             workspaceFolder.uri.fsPath,
-             profile.severityMap,
-             profile.messageSeverityOverrides
-         );
-        const diagnostics = diagnosticSets.find(diagnosticSet => sameFile(
-            diagnosticSet.uri.fsPath,
-            document.uri.fsPath
-        ))?.diagnostics ?? [];
+            profile.severityMap,
+            profile.messageSeverityOverrides
+        );
         const diagnosticCount = diagnosticSets.reduce(
             (count, diagnosticSet) => count + diagnosticSet.diagnostics.length,
             0
@@ -285,6 +314,106 @@ function runProcess(
     });
 }
 
+async function resolveLintTarget(
+    document: vscode.TextDocument,
+    workspaceFolder: vscode.WorkspaceFolder
+): Promise<LintTarget | undefined> {
+    const requestedFilePath = document.uri.fsPath;
+
+    if (!isHeaderFile(requestedFilePath)) {
+        return {
+            requestedFilePath,
+            lintFilePath: requestedFilePath,
+            lintFileDescription: ""
+        };
+    }
+
+    const sourceFilePath = await findCompanionSourceFile(requestedFilePath, workspaceFolder);
+
+    if (!sourceFilePath) {
+        return undefined;
+    }
+
+    return {
+        requestedFilePath,
+        lintFilePath: sourceFilePath,
+        lintFileDescription: " (resolved from header)"
+    };
+}
+
+function isHeaderFile(filePath: string): boolean {
+    return headerExtensions.has(path.extname(filePath));
+}
+
+async function findCompanionSourceFile(
+    headerFilePath: string,
+    workspaceFolder: vscode.WorkspaceFolder
+): Promise<string | undefined> {
+    const headerDirectory = path.dirname(headerFilePath);
+    const headerBaseName = path.basename(headerFilePath, path.extname(headerFilePath));
+
+    for (const extension of sourceExtensions) {
+        const candidate = path.join(headerDirectory, `${headerBaseName}${extension}`);
+
+        if (await fileExists(candidate)) {
+            return candidate;
+        }
+    }
+
+    const workspaceCandidates: string[] = [];
+
+    for (const extension of sourceExtensions) {
+        const pattern = new vscode.RelativePattern(workspaceFolder, `**/${headerBaseName}${extension}`);
+        const uris = await vscode.workspace.findFiles(pattern, "**/{node_modules,.git,.vscode}/**", 20);
+        workspaceCandidates.push(...uris.map(uri => uri.fsPath));
+    }
+
+    return chooseClosestPath(headerFilePath, workspaceCandidates);
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+    try {
+        const stat = await fs.stat(filePath);
+
+        return stat.isFile();
+    } catch (error) {
+        if (isMissingPath(error)) {
+            return false;
+        }
+
+        throw error;
+    }
+}
+
+function chooseClosestPath(referencePath: string, candidates: string[]): string | undefined {
+    const uniqueCandidates = [...new Map(candidates.map(candidate => [path.normalize(candidate), candidate])).values()];
+
+    uniqueCandidates.sort((left, right) => pathDistance(referencePath, left) - pathDistance(referencePath, right));
+
+    return uniqueCandidates[0];
+}
+
+function pathDistance(leftPath: string, rightPath: string): number {
+    const leftParts = path.resolve(leftPath).split(path.sep);
+    const rightParts = path.resolve(rightPath).split(path.sep);
+    let commonParts = 0;
+
+    while (commonParts < leftParts.length
+        && commonParts < rightParts.length
+        && leftParts[commonParts] === rightParts[commonParts]) {
+        commonParts += 1;
+    }
+
+    return (leftParts.length - commonParts) + (rightParts.length - commonParts);
+}
+
+function isMissingPath(error: unknown): boolean {
+    return typeof error === "object"
+        && error !== null
+        && "code" in error
+        && String(error.code) === "ENOENT";
+}
+
 function withPchIncludeDir(
     includeDirs: string[],
     pchHeader: string,
@@ -371,7 +500,8 @@ function formatErrorMessage(error: unknown): string {
 
 function groupDiagnosticsByTargetFile(
     diagnostics: ReturnType<typeof parsePclintOutput>,
-    documentPath: string,
+    requestedFilePath: string,
+    lintTargetFilePath: string,
     lintSourceFilePath: string,
     workspaceFolderPath: string,
     severityMap: Parameters<typeof toVscodeDiagnostics>[1],
@@ -382,7 +512,8 @@ function groupDiagnosticsByTargetFile(
     for (const diagnostic of diagnostics) {
         const targetPath = getDiagnosticTargetPath(
             diagnostic.file,
-            documentPath,
+            requestedFilePath,
+            lintTargetFilePath,
             lintSourceFilePath,
             workspaceFolderPath
         );
@@ -404,14 +535,19 @@ function groupDiagnosticsByTargetFile(
 
 function getDiagnosticTargetPath(
     diagnosticFile: string,
-    documentPath: string,
+    requestedFilePath: string,
+    lintTargetFilePath: string,
     lintSourceFilePath: string,
     workspaceFolderPath: string
 ): string {
     const resolvedDiagnosticPath = resolveDiagnosticPath(diagnosticFile, workspaceFolderPath);
 
-    if (sameFile(resolvedDiagnosticPath, documentPath) || sameFile(resolvedDiagnosticPath, lintSourceFilePath)) {
-        return documentPath;
+    if (sameFile(resolvedDiagnosticPath, lintSourceFilePath) && !sameFile(lintSourceFilePath, lintTargetFilePath)) {
+        return lintTargetFilePath;
+    }
+
+    if (sameFile(resolvedDiagnosticPath, requestedFilePath)) {
+        return requestedFilePath;
     }
 
     return resolvedDiagnosticPath;
@@ -419,13 +555,16 @@ function getDiagnosticTargetPath(
 
 function isCurrentFileDiagnostic(
     diagnosticFile: string,
-    documentPath: string,
+    requestedFilePath: string,
+    lintTargetFilePath: string,
     lintSourceFilePath: string,
     workspaceFolderPath: string
 ): boolean {
     const resolvedDiagnosticPath = resolveDiagnosticPath(diagnosticFile, workspaceFolderPath);
 
-    return sameFile(resolvedDiagnosticPath, documentPath) || sameFile(resolvedDiagnosticPath, lintSourceFilePath);
+    return sameFile(resolvedDiagnosticPath, requestedFilePath)
+        || sameFile(resolvedDiagnosticPath, lintTargetFilePath)
+        || sameFile(resolvedDiagnosticPath, lintSourceFilePath);
 }
 
 function resolveDiagnosticPath(diagnosticFile: string, workspaceFolderPath: string): string {
