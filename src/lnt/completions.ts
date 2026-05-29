@@ -27,6 +27,12 @@ const OPTION_COMPLETIONS: readonly LntOptionCompletion[] = [
         insertText: "-w${1|0,1,2,3,4|}"
     },
     {
+        label: "-wlib",
+        detail: "Warning level for libs",
+        documentation: "Set the warning level.",
+        insertText: "-w${1|0,1,2,3,4|}"
+    },
+    {
         label: "-esym",
         detail: "Suppress message for symbol",
         documentation: "Suppress a message for one symbol or symbol pattern.",
